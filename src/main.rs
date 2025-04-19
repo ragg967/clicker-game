@@ -13,7 +13,7 @@ fn main() {
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "I am a window!".into(),
+                    title: "clicker-game".into(),
                     name: Some("bevy.app".into()),
                     resolution: default(),
                     present_mode: PresentMode::AutoVsync,
@@ -110,9 +110,24 @@ fn setup_ball(
         .insert(Ball);
 }
 
-fn print_ball_altitude(positions: Query<&Transform, With<RigidBody>>, time: Res<Time>) {
-    for transform in positions.iter() {
-        println!("Ball altitude: {}", transform.translation.y);
+fn print_ball_altitude(
+    positions: Query<&Transform, With<RigidBody>>,
+    time: Res<Time>,
+    mut timer: Local<Timer>,
+) {
+    // Initialize timer on first run
+    if timer.duration().is_zero() {
+        *timer = Timer::from_seconds(1.0, TimerMode::Repeating);
+    }
+
+    // Tick the timer
+    timer.tick(time.delta());
+
+    // If timer just finished, print the altitude
+    if timer.just_finished() {
+        for transform in positions.iter() {
+            println!("\n> Ball altitude: {}\n", transform.translation.y);
+        }
     }
 }
 
