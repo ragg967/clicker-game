@@ -1,16 +1,49 @@
 #![warn(clippy::all, clippy::permissions_set_readonly_false)]
-use bevy::{color::palettes::css::*, prelude::*};
+use bevy::{
+    color::palettes::css::*,
+    core::FrameCount,
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    prelude::*,
+    window::{PresentMode, WindowTheme},
+};
 use bevy_rapier2d::prelude::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "I am a window!".into(),
+                    name: Some("bevy.app".into()),
+                    resolution: default(),
+                    present_mode: PresentMode::AutoVsync,
+                    // Tells Wasm to resize the window according to the available canvas
+                    fit_canvas_to_parent: true,
+                    // Tells Wasm not to override default event handling, like F5, Ctrl+R etc.
+                    prevent_default_event_handling: false,
+                    window_theme: Some(WindowTheme::Dark),
+                    enabled_buttons: bevy::window::EnabledButtons {
+                        maximize: false,
+                        ..Default::default()
+                    },
+                    // This will spawn an invisible window
+                    // The window will be made visible in the make_visible() system after 3 frames.
+                    // This is useful when you want to avoid the white window that shows up before the GPU is ready to render the app.
+                    visible: false,
+                    ..default()
+                }),
+                ..default()
+            }),
+            LogDiagnosticsPlugin::default(),
+            FrameTimeDiagnosticsPlugin,
+        ))
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
         .add_plugins(RapierDebugRenderPlugin::default())
-        .add_systems(Startup, setup_camera)
-        .add_systems(Startup, (setup_ball, setup_ground))
-        .add_systems(Update, print_ball_altitude)
-        .add_systems(Update, grab_ball_system)
+        .add_systems(Startup, (setup_camera, setup_ball, setup_ground))
+        .add_systems(
+            Update,
+            (grab_ball_system, print_ball_altitude, make_visible),
+        )
         .insert_resource(BallGrabState::default())
         .run();
 }
@@ -24,6 +57,16 @@ struct Ball;
 #[derive(Resource, Default)]
 struct BallGrabState {
     is_grabbed: bool,
+}
+
+fn make_visible(mut window: Single<&mut Window>, frames: Res<FrameCount>) {
+    // The delay may be different for your app or system.
+    if frames.0 == 3 {
+        // At this point the gpu is ready to show the app so we can make the window visible.
+        // Alternatively, you could toggle the visibility in Startup.
+        // It will work, but it will have one white frame before it starts rendering
+        window.visible = true;
+    }
 }
 
 fn setup_camera(mut commands: Commands) {
@@ -67,7 +110,7 @@ fn setup_ball(
         .insert(Ball);
 }
 
-fn print_ball_altitude(positions: Query<&Transform, With<RigidBody>>) {
+fn print_ball_altitude(positions: Query<&Transform, With<RigidBody>>, time: Res<Time>) {
     for transform in positions.iter() {
         println!("Ball altitude: {}", transform.translation.y);
     }
